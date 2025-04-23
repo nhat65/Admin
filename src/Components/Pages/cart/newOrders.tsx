@@ -11,11 +11,11 @@ import axios from 'axios';
 import { API_ENDPOINTS } from '../../../service/apiService';
 import { CartInfo } from '../../../types/cartInfo';
 import { parse, format } from 'date-fns';
+import { Link } from 'react-router-dom';
 
 interface Props {}
 
 const ViewNewOrders: React.FC<Props> = () => {
-  const [searchCustomerName, setSearchCustomerName] = useState('');
   const [searchId, setSearchId] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<CartInfo[]>([]);
@@ -23,9 +23,9 @@ const ViewNewOrders: React.FC<Props> = () => {
   const [loading, setLoading] = useState(true);
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [loadingConfirm, setLoadingConfirm] = useState<string | null>(null);
-  const [loadingNavigate, setLoadingNavigate] = useState<boolean>(false);
+  const [searchName, setSearchName] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const ordersPerPage = 5;
+  const ordersPerPage = 10;
 
   const navigate = useNavigate();
 
@@ -35,11 +35,22 @@ const ViewNewOrders: React.FC<Props> = () => {
 
   const GetAllTransactions = async () => {
     try {
-      const response = await axios.get<CartInfo[]>(API_ENDPOINTS.GET_TRANSACTIONS);
-      console.log('Fetched Transactions:', response.data);
+      const response = await axios.get<CartInfo[]>(
+        API_ENDPOINTS.GET_TRANSACTIONS
+      );
       const allData = response.data;
-      setAllTransactions(allData);
-      setTransactions(allData.filter((order) => order.status === 'NewOrder'));
+
+      // sort transaction by dateOrder des
+      const sortedData = allData.sort((a, b) => {
+        const dateA = parse(a.dateOrder, 'dd/MM/yyyy HH:mm', new Date());
+        const dateB = parse(b.dateOrder, 'dd/MM/yyyy HH:mm', new Date());
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      setAllTransactions(sortedData);
+      setTransactions(
+        sortedData.filter((order) => order.status === 'NewOrder')
+      );
       setStatusFilter('NewOrder');
     } catch (error) {
       console.error('Error fetching transactions:', error);
@@ -48,46 +59,73 @@ const ViewNewOrders: React.FC<Props> = () => {
     }
   };
 
-  const handleConfirmOrder = (orderId: string) => {
+  const handleConfirmOrder = async (orderId: string) => {
     setLoadingConfirm(orderId);
-    const updatedOrders = transactions.map((order) =>
-      order.id === orderId && order.status === 'NewOrder'
-        ? { ...order, status: 'Delivery' } // Update to 'Delivery' instead of 'Processing'
-        : order
-    );
-    setTransactions(updatedOrders);
-    setAllTransactions(updatedOrders); // Keep allTransactions in sync
-    setLoadingConfirm(null);
+    try {
+      // Call the UPDATE_CART_STATUS API with PUT method
+      await axios.put(API_ENDPOINTS.UPDATE_CART_STATUS, {
+        cartInfoId: orderId,
+        status: 'Delivery',
+      });
+
+      // Update local state on success
+      const updatedOrders = transactions.map((order) =>
+        order.id === orderId && order.status === 'NewOrder'
+          ? { ...order, status: 'Delivery' }
+          : order
+      );
+      const updatedAllOrders = allTransactions.map((order) =>
+        order.id === orderId && order.status === 'NewOrder'
+          ? { ...order, status: 'Delivery' }
+          : order
+      );
+      setTransactions(updatedOrders);
+      setAllTransactions(updatedAllOrders);
+      alert('Order confirmed successfully!');
+    } catch (error) {
+      console.error('Error confirming order:', error);
+      alert('Failed to confirm order. Please try again.');
+    } finally {
+      setLoadingConfirm(null);
+    }
   };
 
   const handleReset = () => {
-    setSearchCustomerName('');
+    setSearchName('');
     setSearchId('');
     setStatusFilter(null);
     setTransactions(allTransactions);
     setCurrentPage(1);
   };
 
-  const handleSearch = (filter: string | null = statusFilter) => {
+  const handleSearch = async (filter: string | null = statusFilter) => {
     setLoadingSearch(true);
-    let filteredOrders = [...allTransactions];
-  
-    // Áp dụng bộ lọc tìm kiếm
-    filteredOrders = filteredOrders.filter((transaction) => {
-      const matchesId = transaction.id?.toLowerCase().includes(searchId.toLowerCase()) ?? true;
-      // const matchesName = transaction.name?.toLowerCase().includes(searchCustomerName.toLowerCase()) ?? true;
-      return matchesId; // && matchesName;
-    });
-  
-    // Áp dụng bộ lọc trạng thái
-    if (filter) {
-      filteredOrders = filteredOrders.filter((order) => order.status === filter);
+    try {
+      if (filter) {
+        const filteredOrders = allTransactions.filter(
+          (order) => order.status === filter
+        );
+        setTransactions(filteredOrders);
+      } else if (searchName) {
+        // Gọi API nếu có searchName
+        const response = await axios.get<CartInfo[]>(
+          API_ENDPOINTS.SEARCH_TRANSACTIONS,
+          {
+            params: {
+              userName: searchName,
+            },
+          }
+        );
+        setTransactions(response.data);
+      } else {
+        setTransactions(allTransactions);
+      }
+      setCurrentPage(1);
+    } catch (error) {
+      console.error('Search failed:', error);
+    } finally {
+      setLoadingSearch(false);
     }
-  
-    console.log('Filtered Orders:', filteredOrders);
-    setTransactions(filteredOrders);
-    setCurrentPage(1);
-    setLoadingSearch(false);
   };
 
   const handleCardClick = (filter: string) => {
@@ -96,9 +134,12 @@ const ViewNewOrders: React.FC<Props> = () => {
   };
 
   const summaryData = {
-    newOrders: allTransactions.filter((order) => order.status === 'NewOrder').length,
-    delivery: allTransactions.filter((order) => order.status === 'Delivery').length,
-    completed: allTransactions.filter((order) => order.status === 'Completed').length,
+    newOrders: allTransactions.filter((order) => order.status === 'NewOrder')
+      .length,
+    delivery: allTransactions.filter((order) => order.status === 'Delivery')
+      .length,
+    completed: allTransactions.filter((order) => order.status === 'Completed')
+      .length,
   };
 
   // Pagination logic
@@ -110,18 +151,21 @@ const ViewNewOrders: React.FC<Props> = () => {
   const handlePageChange = (pageNumber: number) => {
     setCurrentPage(pageNumber);
   };
+
   const formatDate = (dateString: string) => {
     try {
-      // Phân tích chuỗi với định dạng "dd/MM/yyyy HH:mm"
+      // Parse string with format "dd/MM/yyyy HH:mm"
       const date = parse(dateString, 'dd/MM/yyyy HH:mm', new Date());
-      // Định dạng lại theo ý muốn, ví dụ: "MM/dd/yyyy"
+      // Format as desired, e.g., "MM/dd/yyyy"
       return format(date, 'MM/dd/yyyy');
     } catch (error) {
       console.error('Error parsing date:', dateString, error);
       return 'Unknown Date';
     }
   };
-  const showActionsColumn = statusFilter === 'NewOrder' || statusFilter === null;
+
+  const showActionsColumn =
+    statusFilter === 'NewOrder' || statusFilter === null;
 
   if (loading) return <div>Loading cart...</div>;
 
@@ -144,7 +188,7 @@ const ViewNewOrders: React.FC<Props> = () => {
           </div>
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div
-              onClick={() => handleCardClick('NewOrder')} // Changed from 'Pending' to 'NewOrder'
+              onClick={() => handleCardClick('NewOrder')}
               className={`flex cursor-pointer items-center justify-between rounded-lg bg-blue-50 p-4 shadow-sm transition-colors hover:bg-blue-100 ${
                 statusFilter === 'NewOrder' ? 'border-2 border-blue-500' : ''
               } ${loadingSearch ? 'cursor-not-allowed opacity-50' : ''}`}
@@ -152,11 +196,15 @@ const ViewNewOrders: React.FC<Props> = () => {
               <div className="flex items-center">
                 <FaShoppingCart className="mr-3 text-2xl text-blue-500" />
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800">New Order</h3>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    New Order
+                  </h3>
                   <p className="text-sm text-gray-600">New Orders</p>
                 </div>
               </div>
-              <p className="text-3xl font-bold text-gray-800">{summaryData.newOrders}</p>
+              <p className="text-3xl font-bold text-gray-800">
+                {summaryData.newOrders}
+              </p>
             </div>
             <div
               onClick={() => handleCardClick('Delivery')}
@@ -167,11 +215,15 @@ const ViewNewOrders: React.FC<Props> = () => {
               <div className="flex items-center">
                 <FaTruck className="mr-3 text-2xl text-blue-500" />
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800">Delivery</h3>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    Delivery
+                  </h3>
                   <p className="text-sm text-gray-600">Delivery Orders</p>
                 </div>
               </div>
-              <p className="text-3xl font-bold text-gray-800">{summaryData.delivery}</p>
+              <p className="text-3xl font-bold text-gray-800">
+                {summaryData.delivery}
+              </p>
             </div>
             <div
               onClick={() => handleCardClick('Completed')}
@@ -182,11 +234,15 @@ const ViewNewOrders: React.FC<Props> = () => {
               <div className="flex items-center">
                 <FaCheckCircle className="mr-3 text-2xl text-blue-500" />
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800">Completed</h3>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    Completed
+                  </h3>
                   <p className="text-sm text-gray-600">Completed Orders</p>
                 </div>
               </div>
-              <p className="text-3xl font-bold text-gray-800">{summaryData.completed}</p>
+              <p className="text-3xl font-bold text-gray-800">
+                {summaryData.completed}
+              </p>
             </div>
           </div>
         </div>
@@ -203,19 +259,23 @@ const ViewNewOrders: React.FC<Props> = () => {
           </div>
           <div className="mb-4 grid grid-cols-2 gap-x-5 border-t-2">
             <div className="my-2">
-              <label htmlFor="customerName" className="">Customer Name</label>
+              <label htmlFor="customerMail" className="">
+                Customer Mail
+              </label>
               <input
                 type="text"
-                id="customerName"
-                value={searchCustomerName}
-                onChange={(e) => setSearchCustomerName(e.target.value)}
+                id="customerMail"
+                value={searchName}
+                onChange={(e) => setSearchName(e.target.value)}
                 className="mt-2 inline-block h-11 w-full rounded-xl border-2 pl-3 align-middle focus:border-gray-400 focus:shadow-md focus:outline-none"
-                placeholder="Enter customer name"
+                placeholder="Enter customer mail"
                 disabled={loadingSearch}
               />
             </div>
             <div className="my-2">
-              <label htmlFor="orderId" className="">Order ID</label>
+              <label htmlFor="orderId" className="">
+                Order ID
+              </label>
               <input
                 type="text"
                 id="orderId"
@@ -239,7 +299,9 @@ const ViewNewOrders: React.FC<Props> = () => {
               <button
                 onClick={() => handleSearch()}
                 className={`mx-3 flex items-center justify-center rounded-3xl px-9 py-1 text-white ${
-                  loadingSearch ? 'cursor-not-allowed bg-green-400' : 'bg-green-500 hover:bg-green-600'
+                  loadingSearch
+                    ? 'cursor-not-allowed bg-green-400'
+                    : 'bg-green-500 hover:bg-green-600'
                 }`}
                 disabled={loadingSearch}
               >
@@ -284,15 +346,29 @@ const ViewNewOrders: React.FC<Props> = () => {
             <table className="w-full border-collapse border border-gray-200">
               <thead className="bg-gray-100">
                 <tr>
-                  <th className="w-[50px] border border-gray-300 px-4 py-2 text-left">S.No</th>
-                  <th className="border border-gray-300 px-4 py-2 text-left">Order ID</th>
-                  <th className="border border-gray-300 px-4 py-2 text-left">Customer Name</th>
-                  <th className="border border-gray-300 px-4 py-2 text-left">Total Amount</th>
-                  <th className="border border-gray-300 px-4 py-2 text-left">Status</th>
-                  <th className="border border-gray-300 px-4 py-2 text-left">Date</th>
+                  <th className="w-[50px] border border-gray-300 px-4 py-2 text-left">
+                    S.No
+                  </th>
+                  <th className="border border-gray-300 px-4 py-2 text-left">
+                    Order ID
+                  </th>
+                  <th className="border border-gray-300 px-4 py-2 text-left">
+                    Customer Mail
+                  </th>
+                  <th className="border border-gray-300 px-4 py-2 text-left">
+                    Total Amount
+                  </th>
+                  <th className="border border-gray-300 px-4 py-2 text-left">
+                    Status
+                  </th>
+                  <th className="border border-gray-300 px-4 py-2 text-left">
+                    Date
+                  </th>
                   {showActionsColumn && (
                     <th className="w-[120px] border border-gray-300 px-4 py-2 text-left">
-                      {statusFilter === 'NewOrder' ? 'Confirm Order' : 'Actions'}
+                      {statusFilter === 'NewOrder'
+                        ? 'Confirm Order'
+                        : 'Actions'}
                     </th>
                   )}
                 </tr>
@@ -303,20 +379,28 @@ const ViewNewOrders: React.FC<Props> = () => {
                     <td className="border border-gray-300 px-4 py-2 text-center">
                       {indexOfFirstOrder + index + 1}
                     </td>
-                    <td className="border border-gray-300 px-4 py-2">#{transaction.id?.slice(0, 8)}</td>
-                    <td className="border border-gray-300 px-4 py-2">Anonymous</td>
+                    <td className="border border-gray-300 px-4 py-2">
+                      #{transaction.id?.slice(0, 8)}
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-blue-500 underline hover:text-blue-700">
+                      <Link to="/users/viewUsers">{transaction.userName}</Link>
+                    </td>
                     <td className="border border-gray-300 px-4 py-2">
                       {transaction.totalPrice.toLocaleString('vi-VN')}₫
                     </td>
-                    <td className="border border-gray-300 px-4 py-2">{transaction.status}</td>
                     <td className="border border-gray-300 px-4 py-2">
-                    {formatDate(transaction.dateOrder)}
+                      {transaction.status}
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2">
+                      {formatDate(transaction.dateOrder)}
                     </td>
                     {showActionsColumn && (
                       <td className="border border-gray-300 px-10 py-2">
-                        {transaction.status === 'NewOrder' ? ( // Changed from 'Pending' to 'NewOrder'
+                        {transaction.status === 'NewOrder' ? (
                           <button
-                            onClick={() => handleConfirmOrder(transaction.id ?? '')}
+                            onClick={() =>
+                              handleConfirmOrder(transaction.id ?? '')
+                            }
                             className={`flex items-center justify-center rounded-full p-2 ${
                               loadingConfirm === transaction.id
                                 ? 'cursor-not-allowed bg-gray-300'
@@ -350,7 +434,10 @@ const ViewNewOrders: React.FC<Props> = () => {
                             )}
                           </button>
                         ) : (
-                          <button className="rounded-full bg-green-400 p-2" disabled>
+                          <button
+                            className="rounded-full bg-green-400 p-2"
+                            disabled
+                          >
                             <FaCheck className="text-gray-500" />
                           </button>
                         )}
@@ -362,7 +449,8 @@ const ViewNewOrders: React.FC<Props> = () => {
             </table>
             <div className="mt-4 flex items-center justify-between">
               <div>
-                Showing {indexOfFirstOrder + 1} to {Math.min(indexOfLastOrder, transactions.length)} of{' '}
+                Showing {indexOfFirstOrder + 1} to{' '}
+                {Math.min(indexOfLastOrder, transactions.length)} of{' '}
                 {transactions.length} orders
               </div>
               <div className="flex space-x-2">
@@ -373,17 +461,21 @@ const ViewNewOrders: React.FC<Props> = () => {
                 >
                   Previous
                 </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => handlePageChange(page)}
-                    className={`rounded-md border px-3 py-1 ${
-                      currentPage === page ? 'bg-green-500 text-white' : 'bg-white'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                  (page) => (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`rounded-md border px-3 py-1 ${
+                        currentPage === page
+                          ? 'bg-green-500 text-white'
+                          : 'bg-white'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                )}
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages}

@@ -1,111 +1,182 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { Category } from '../../../types/category';
+import { API_ENDPOINTS } from '../../../service/apiService';
 
 interface AddCategoryProps {}
 
 const AddCategory: React.FC<AddCategoryProps> = () => {
   const navigate = useNavigate();
 
-  // State for form inputs
-  const [formData, setFormData] = useState({
+  const [category, setCategory] = useState<Category>({
     categoryName: '',
     description: '',
-    status: 'Active', // Default status
+    image: '',
   });
 
-  // State for loading
   const [loading, setLoading] = useState<'save' | 'cancel' | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentImageUrl, setCurrentImageUrl] = useState('');
 
   // Handler for input changes
-  const handleInput = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { id, value } = e.target;
-    setFormData(prev => ({
+    setCategory((prev) => ({
       ...prev,
       [id]: value,
     }));
   };
 
-  const handleCancel = () => {
-    setLoading('cancel'); // Set loading state for cancel
-    navigate('/categories/viewCategories'); // Navigate immediately
-    setLoading(null); // Clear loading state (though this may not be noticeable due to navigation)
+  // Modal handlers
+  const openModal = () => {
+    setIsModalOpen(true);
+    setCurrentImageUrl(category.image);
   };
 
-  const handleSave = () => {
-    setLoading('save'); // Set loading state for save
-    console.log('Saving category:', formData);
-    navigate('/categories/viewCategories'); // Navigate immediately
-    setLoading(null); // Clear loading state (though this may not be noticeable due to navigation)
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setCurrentImageUrl('');
+  };
+
+  const saveModal = () => {
+    setCategory((prev) => ({
+      ...prev,
+      image: currentImageUrl.trim(),
+    }));
+    setIsModalOpen(false);
+    setCurrentImageUrl('');
+  };
+
+  // Validation
+  const validateCategory = (category: Category): string | null => {
+    if (!category.categoryName.trim()) return 'Category name is required';
+    if (!category.description.trim()) return 'Description is required';
+    if (!category.image.trim()) return 'Category image is required';
+    return null;
+  };
+
+  // Handle cancel
+  const handleCancel = () => {
+    setLoading('cancel');
+    navigate('/categories/viewCategories');
+    setLoading(null);
+  };
+
+  // Handle save
+  const handleSave = async () => {
+    try {
+      setLoading('save');
+
+      const categoryToSave: Category = {
+        categoryName: category.categoryName.trim(),
+        description: category.description.trim(),
+        image: category.image.trim(),
+      };
+
+      // Validation
+      const error = validateCategory(categoryToSave);
+      if (error) {
+        alert(error);
+        setLoading(null);
+        return;
+      }
+
+      // Call API POST
+      await axios.post(API_ENDPOINTS.POST_CATEGORY, categoryToSave);
+      alert('Category saved successfully!');
+      navigate('/categories/viewCategories');
+    } catch (error) {
+      console.error('Error saving category:', error);
+      alert('Failed to save category. Please check your inputs or try again.');
+    } finally {
+      setLoading(null);
+    }
   };
 
   return (
     <div>
-      <div className="w-full p-4 bg-white rounded-lg shadow-sm">
-        <div className="w-full pb-3 border-b-2">
+      <div className="w-full rounded-lg bg-white p-4 shadow-sm">
+        <div className="w-full border-b-2 pb-3">
           <label className="font-bold">Add Category</label>
         </div>
-        
-        <div className="grid w-full grid-cols-2 m-2 gap-x-5">
+
+        <div className="m-2 grid w-full grid-cols-2 gap-x-5">
           <div className="space-y-10">
             <div>
               <label htmlFor="categoryName">Category Name*</label>
               <input
                 type="text"
                 id="categoryName"
-                value={formData.categoryName}
-                onChange={handleInput}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                value={category.categoryName}
+                onChange={handleInputChange}
+                className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter category name"
-                disabled={loading !== null} // Disable input during loading
+                disabled={loading !== null}
               />
             </div>
           </div>
 
           <div className="space-y-10">
             <div>
-              <label htmlFor="status">Status*</label>
-              <select
-                id="status"
-                value={formData.status}
-                onChange={handleInput}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
-                disabled={loading !== null} // Disable select during loading
+              <label>Image*</label>
+              <button
+                onClick={openModal}
+                className="mt-2 h-11 w-full rounded-xl border-2 bg-green-50 pl-3 text-green-700 hover:bg-green-100 focus:border-gray-400 focus:shadow-md focus:outline-none"
+                disabled={loading !== null}
               >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
+                Add Category Image
+              </button>
+              {category.image && (
+                <div className="mt-2">
+                  <p className="text-sm text-gray-600">Current Image:</p>
+                  <ul className="list-inside list-disc">
+                    <li className="text-sm text-blue-500">
+                      <a
+                        href={category.image}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {category.image}
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="w-full p-3 mt-4 bg-gray-100 rounded-xl">
+        <div className="mt-4 w-full rounded-xl bg-gray-100 p-3">
           <div>
             <label htmlFor="description">Description*</label>
             <textarea
               id="description"
-              value={formData.description}
-              onChange={handleInput}
-              className="w-full pl-3 mt-2 border-2 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none min-h-[100px] p-2"
+              value={category.description}
+              onChange={handleInputChange}
+              className="mt-2 min-h-[100px] w-full rounded-xl border-2 p-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
               placeholder="Enter category description"
-              disabled={loading !== null} // Disable textarea during loading
+              disabled={loading !== null}
             />
           </div>
         </div>
 
-        <div className="flex w-full my-2 border-t-2">
+        <div className="my-2 flex w-full border-t-2">
           <div>*Required</div>
-          <div className="flex justify-end w-full mt-3">
+          <div className="mt-3 flex w-full justify-end">
             <button
               onClick={handleCancel}
-              className={`py-1 text-green-500 border border-green-500 rounded-3xl px-9 flex items-center justify-center ${
-                loading === 'cancel' ? 'opacity-50 cursor-not-allowed' : ''
+              className={`flex items-center justify-center rounded-3xl border border-green-500 px-9 py-1 text-green-500 ${
+                loading === 'cancel' ? 'cursor-not-allowed opacity-50' : ''
               }`}
-              disabled={loading !== null} // Disable button during loading
+              disabled={loading !== null}
             >
               {loading === 'cancel' ? (
                 <>
                   <svg
-                    className="w-5 h-5 mr-2 text-green-500 animate-spin"
+                    className="mr-2 h-5 w-5 animate-spin text-green-500"
                     xmlns="http://www.w3.org/2000/svg"
                     fill="none"
                     viewBox="0 0 24 24"
@@ -132,15 +203,17 @@ const AddCategory: React.FC<AddCategoryProps> = () => {
             </button>
             <button
               onClick={handleSave}
-              className={`py-1 mx-3 text-white rounded-3xl px-9 flex items-center justify-center ${
-                loading === 'save' ? 'bg-green-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'
+              className={`mx-3 flex items-center justify-center rounded-3xl px-9 py-1 text-white ${
+                loading === 'save'
+                  ? 'cursor-not-allowed bg-green-400'
+                  : 'bg-green-500 hover:bg-green-600'
               }`}
-              disabled={loading !== null} // Disable button during loading
+              disabled={loading !== null}
             >
               {loading === 'save' ? (
                 <>
                   <svg
-                    className="w-5 h-5 mr-2 text-white animate-spin"
+                    className="mr-2 h-5 w-5 animate-spin text-white"
                     xmlns="http://www.w3.org/2000/svg"
                     fill="none"
                     viewBox="0 0 24 24"
@@ -168,6 +241,51 @@ const AddCategory: React.FC<AddCategoryProps> = () => {
           </div>
         </div>
       </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-lg">
+            <h2 className="mb-4 text-lg font-bold">Edit Category Image</h2>
+            <div className="mb-4 flex items-center">
+              <input
+                type="text"
+                value={currentImageUrl}
+                onChange={(e) => setCurrentImageUrl(e.target.value)}
+                className="h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
+                placeholder="Enter image URL (e.g., https://example.com/image.jpg)"
+              />
+            </div>
+            {currentImageUrl && (
+              <div className="mb-4">
+                <img
+                  src={currentImageUrl}
+                  alt="Category Image Preview"
+                  className="h-32 w-32 rounded object-cover"
+                  onError={(e) =>
+                    (e.currentTarget.src =
+                      'https://via.placeholder.com/150?text=Invalid+URL')
+                  }
+                />
+              </div>
+            )}
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={closeModal}
+                className="rounded-3xl border border-gray-500 px-4 py-1 text-gray-500 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveModal}
+                className="rounded-3xl bg-green-500 px-4 py-1 text-white hover:bg-green-600"
+                disabled={!currentImageUrl.trim()}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

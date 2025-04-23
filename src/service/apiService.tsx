@@ -1,13 +1,26 @@
-const API_BASE_URL = "http://192.168.1.9:5117";
+const API_BASE_URL = "http://10.60.140.3:5117";
 
 export const API_ENDPOINTS = {
     GET_CART_INFO: `${API_BASE_URL}/CartInfo/GetCartInfos`,
-    GET_CATEGORIES: `${API_BASE_URL}/Category/GetCategories`,
-    GET_USER_INFO: `${API_BASE_URL}/UserInfo/GetUserInfos`,
     GET_PRODUCT_INFO: `${API_BASE_URL}/ProductInfo/GetProductInfos`,
+    POST_PRODUCT_INFO: `${API_BASE_URL}/ProductInfo/PostProductInfo`,
+    PUT_PRODUCT_INFO: `${API_BASE_URL}/ProductInfo/PutProductInfo`,
+    DELETE_PRODUCT_INFO: `${API_BASE_URL}/ProductInfo/DeleteProductInfo`,
+    SEARCH_PRODUCT_INFO: `${API_BASE_URL}/ProductInfo/SearchProductInfos`,
     GET_PRODUCT_DETAILS: `${API_BASE_URL}/ProductInfo/GetProductDetailsById`,
     GET_PRODUCT_BY_CATEGORY: `${API_BASE_URL}/ProductInfo/GetProductsByCategoryId`,
+    GET_CATEGORIES: `${API_BASE_URL}/Category/GetCategories`,
+    POST_CATEGORY: `${API_BASE_URL}/Category/PostCategory`,
+    PUT_CATEGORY: `${API_BASE_URL}/Category/PutCategory`,
+    SEARCH_CATEGORY: `${API_BASE_URL}/Category/SearchCategory`,
+    DELETE_CATEGORY: `${API_BASE_URL}/Category/DeleteCategory`,
+    GET_USER_INFO: `${API_BASE_URL}/UserInfo/GetUserInfos`,
+    POST_USER_INFO: `${API_BASE_URL}/UserInfo/PostUserInfo`,
+    PUT_USER_INFO: `${API_BASE_URL}/UserInfo/PutUserInfo`,
+    DELETE_USER_INFO: `${API_BASE_URL}/UserInfo/DeleteUserInfo`,
+    SEARCH_USER_INFO: `${API_BASE_URL}/UserInfo/SearchUserInfos`,
     GET_TRANSACTIONS: `${API_BASE_URL}/CartInfo/GetAllTransactions`,
+    SEARCH_TRANSACTIONS: `${API_BASE_URL}/CartInfo/SearchTransactionsByUserName`,
     UPDATE_CART_STATUS: `${API_BASE_URL}/CartInfo/UpdateStatusCartInfo`,
     DELETE_CART_INFO: `${API_BASE_URL}/CartInfo/DeleteCartInfo`,
 };

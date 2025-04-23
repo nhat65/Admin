@@ -4,6 +4,7 @@ export interface CartInfo {
     dateOrder: string;
     totalPrice: number;
     cartDetails: CartDetailInfo[];
+    userName: string;
 }
 
 export interface CartDetailInfo {

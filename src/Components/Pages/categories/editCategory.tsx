@@ -1,152 +1,302 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import categoriesData from '../../../data/categories';
-import productsData from '../../../data/products';
+import axios from 'axios';
+import { Category } from '../../../types/category';
+import { ProductInfo } from '../../../types/productInfo';
+import { API_ENDPOINTS } from '../../../service/apiService';
 import { FaEdit } from 'react-icons/fa';
 import { FaTrash } from 'react-icons/fa6';
 
 interface EditCategoryProps {}
 
 const EditCategory: React.FC<EditCategoryProps> = () => {
-  const { categoryId } = useParams();
+  const { categoryId } = useParams<{
+    categoryId: string;
+    categoryNameSlug: string;
+  }>();
   const navigate = useNavigate();
 
   // Category state
-  const initialCategory = categoriesData.find(category => category.categoryId === categoryId) || {
-    name: '',
+  const [category, setCategory] = useState<Category>({
+    id: '',
+    categoryName: '',
     description: '',
-    status: 'Active',
-  };
-  const [category, setCategory] = useState(initialCategory);
+    image: '',
+  });
 
   // Loading states
-  const [loading, setLoading] = useState<'save' | 'cancel' | null>(null); // For save and cancel actions
-  const [loadingProductAction, setLoadingProductAction] = useState<{ action: 'edit' | 'delete'; productId: string } | null>(null); // For product actions
+  const [loading, setLoading] = useState<'save' | 'cancel' | null>(null);
+  const [categoryLoading, setCategoryLoading] = useState(true);
+  const [loadingProductAction, setLoadingProductAction] = useState<{
+    action: 'edit' | 'delete';
+    productId: string;
+  } | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentImageUrl, setCurrentImageUrl] = useState('');
 
   // Pagination for products
   const [currentProductPage, setCurrentProductPage] = useState(1);
   const productsPerPage = 5;
+  const [categoryProducts, setCategoryProducts] = useState<ProductInfo[]>([]);
 
-  // Filter products for this category
-  const categoryProducts = productsData.filter(product => product.category === category.name);
-
+  // Fetch category and products
   useEffect(() => {
-    setCategory(initialCategory);
+    const fetchCategory = async () => {
+      try {
+        setCategoryLoading(true);
+        const response = await axios.get<Category[]>(
+          API_ENDPOINTS.GET_CATEGORIES
+        );
+        const foundCategory = response.data.find((c) => c.id === categoryId);
+        if (foundCategory) {
+          setCategory(foundCategory);
+          setCurrentImageUrl(foundCategory.image);
+        } else {
+          throw new Error('Category not found');
+        }
+      } catch (error) {
+        console.error('Error fetching category:', error);
+        alert('Failed to load category. Please try again.');
+      } finally {
+        setCategoryLoading(false);
+      }
+    };
+
+    const fetchProducts = async () => {
+      try {
+        const response = await axios.get<ProductInfo[]>(
+          `${API_ENDPOINTS.GET_PRODUCT_INFO}?categoryId=${categoryId}`
+        );
+        setCategoryProducts(response.data);
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        alert('Failed to load products. Please try again.');
+      }
+    };
+
+    if (categoryId) {
+      fetchCategory();
+      fetchProducts();
+    }
   }, [categoryId]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setCategory(prev => ({ ...prev, [name]: value }));
+  // Handler for input changes
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { id, value } = e.target;
+    setCategory((prev) => ({
+      ...prev,
+      [id]: value,
+    }));
   };
 
+  // Modal handlers
+  const openModal = () => {
+    setIsModalOpen(true);
+    setCurrentImageUrl(category.image);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setCurrentImageUrl('');
+  };
+
+  const saveModal = () => {
+    setCategory((prev) => ({
+      ...prev,
+      image: currentImageUrl.trim(),
+    }));
+    setIsModalOpen(false);
+    setCurrentImageUrl('');
+  };
+
+  // Validation
+  const validateCategory = (category: Category): string | null => {
+    if (!category.categoryName.trim()) return 'Category name is required';
+    if (!category.description.trim()) return 'Description is required';
+    if (!category.image.trim()) return 'Category image is required';
+    return null;
+  };
+
+  // Product actions
   const handleEditProduct = (productId: string) => {
-    setLoadingProductAction({ action: 'edit', productId }); // Set loading state for edit
-    navigate(`/products/editProduct/${productId}`); // Navigate immediately
-    setLoadingProductAction(null); // Clear loading state (though this may not be noticeable due to navigation)
+    setLoadingProductAction({ action: 'edit', productId });
+    const product = categoryProducts.find((p) => p.id === productId);
+    if (product) {
+      const slug = createSlug(product.name);
+      navigate(`/products/editProduct/${productId}/${slug}`);
+    }
+    setLoadingProductAction(null);
   };
 
-  const handleDeleteProduct = (productId: string) => {
-    setLoadingProductAction({ action: 'delete', productId }); // Set loading state for delete
-    console.log(`Delete product with ID: ${productId}`);
-    setLoadingProductAction(null); // Clear loading state
+  const handleDeleteProduct = async (productId: string) => {
+    if (window.confirm('Are you sure you want to delete this product?')) {
+      setLoadingProductAction({ action: 'delete', productId });
+      try {
+        await axios.delete(`${API_ENDPOINTS.DELETE_PRODUCT_INFO}/${productId}`);
+        setCategoryProducts((prev) => prev.filter((p) => p.id !== productId));
+        alert('Product deleted successfully!');
+      } catch (error) {
+        console.error('Error deleting product:', error);
+        alert('Failed to delete product. Please try again.');
+      } finally {
+        setLoadingProductAction(null);
+      }
+    }
   };
 
+  // Handle cancel
   const handleCancel = () => {
-    setLoading('cancel'); // Set loading state for cancel
-    navigate('/categories/viewCategories'); // Navigate immediately
-    setLoading(null); // Clear loading state (though this may not be noticeable due to navigation)
+    setLoading('cancel');
+    navigate('/categories/viewCategories');
+    setLoading(null);
   };
 
-  const handleSave = () => {
-    setLoading('save'); // Set loading state for save
-    console.log('Saving category:', category);
-    navigate('/categories/viewCategories'); // Navigate immediately
-    setLoading(null); // Clear loading state (though this may not be noticeable due to navigation)
+  // Handle save
+  const handleSave = async () => {
+    try {
+      setLoading('save');
+
+      const categoryToSave: Category = {
+        id: categoryId,
+        categoryName: category.categoryName.trim(),
+        description: category.description.trim(),
+        image: category.image.trim(),
+      };
+
+      // Validation
+      const error = validateCategory(categoryToSave);
+      if (error) {
+        alert(error);
+        setLoading(null);
+        return;
+      }
+
+      // Call API PUT
+      await axios.put(API_ENDPOINTS.PUT_CATEGORY, categoryToSave);
+      alert('Category updated successfully!');
+      navigate('/categories/viewCategories');
+    } catch (error) {
+      console.error('Error updating category:', error);
+      alert(
+        'Failed to update category. Please check your inputs or try again.'
+      );
+    } finally {
+      setLoading(null);
+    }
   };
 
   // Product pagination logic
   const indexOfLastProduct = currentProductPage * productsPerPage;
   const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
-  const currentProducts = categoryProducts.slice(indexOfFirstProduct, indexOfLastProduct);
-  const totalProductPages = Math.ceil(categoryProducts.length / productsPerPage);
+  const currentProducts = categoryProducts.slice(
+    indexOfFirstProduct,
+    indexOfLastProduct
+  );
+  const totalProductPages = Math.ceil(
+    categoryProducts.length / productsPerPage
+  );
 
   const handleProductPageChange = (pageNumber: number) => {
     setCurrentProductPage(pageNumber);
   };
 
+  // Slug creation utility
+  const createSlug = (name: string) =>
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+  if (categoryLoading) {
+    return <div>Loading category...</div>;
+  }
+
   return (
     <div className="bg-gray-50">
       <div className="grid grid-cols-1 gap-6">
-        {/* Part 1: Category Edit/View Section */}
-        <div className="w-full h-auto p-4 bg-white rounded-lg shadow-sm">
-          <div className="w-full pb-3 border-b-2">
+        {/* Part 1: Category Edit Section */}
+        <div className="h-auto w-full rounded-lg bg-white p-4 shadow-sm">
+          <div className="w-full border-b-2 pb-3">
             <label className="font-bold">Edit Category</label>
           </div>
-          
-          <div className="grid w-full grid-cols-2 m-2 gap-x-5">
+
+          <div className="m-2 grid w-full grid-cols-2 gap-x-5">
             <div className="space-y-10">
               <div>
-                <label htmlFor="name">Category Name</label>
+                <label htmlFor="categoryName">Category Name*</label>
                 <input
                   type="text"
-                  id="name"
-                  name="name"
-                  value={category.name}
+                  id="categoryName"
+                  value={category.categoryName}
                   onChange={handleInputChange}
-                  className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                  className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                   placeholder="Enter category name"
-                  disabled={loading !== null} // Disable input during loading
+                  disabled={loading !== null}
                 />
               </div>
             </div>
 
             <div className="space-y-10">
               <div>
-                <label htmlFor="status">Status</label>
-                <select
-                  id="status"
-                  name="status"
-                  value={category.status}
-                  onChange={handleInputChange}
-                  className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
-                  disabled={loading !== null} // Disable select during loading
+                <label>Image*</label>
+                <button
+                  onClick={openModal}
+                  className="mt-2 h-11 w-full rounded-xl border-2 bg-green-50 pl-3 text-green-700 hover:bg-green-100 focus:border-gray-400 focus:shadow-md focus:outline-none"
+                  disabled={loading !== null}
                 >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
+                  Edit Image
+                </button>
+                {category.image && (
+                  <div className="mt-2">
+                    <p className="text-sm text-gray-600">Current Image:</p>
+                    <ul className="list-inside list-disc">
+                      <li className="text-sm text-blue-500">
+                        <a
+                          href={category.image}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {category.image}
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="w-full p-3 mt-4 bg-gray-100 rounded-xl">
+          <div className="mt-4 w-full rounded-xl bg-gray-100 p-3">
             <div>
-              <label htmlFor="description">Description</label>
+              <label htmlFor="description">Description*</label>
               <textarea
                 id="description"
-                name="description"
                 value={category.description}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none min-h-[100px] p-2"
+                className="mt-2 min-h-[100px] w-full rounded-xl border-2 p-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter category description"
-                disabled={loading !== null} // Disable textarea during loading
+                disabled={loading !== null}
               />
             </div>
           </div>
 
           {/* Cancel and Save Buttons */}
-          <div className="flex w-full my-2 border-t-2">
-            <div className="flex justify-end w-full mt-3">
+          <div className="my-2 flex w-full border-t-2">
+            <div>*Required</div>
+            <div className="mt-3 flex w-full justify-end">
               <button
                 onClick={handleCancel}
-                className={`py-1 text-green-500 border border-green-500 rounded-3xl px-9 flex items-center justify-center ${
-                  loading === 'cancel' ? 'opacity-50 cursor-not-allowed' : ''
+                className={`flex items-center justify-center rounded-3xl border border-green-500 px-9 py-1 text-green-500 ${
+                  loading === 'cancel' ? 'cursor-not-allowed opacity-50' : ''
                 }`}
-                disabled={loading !== null} // Disable button during loading
+                disabled={loading !== null}
               >
                 {loading === 'cancel' ? (
                   <>
                     <svg
-                      className="w-5 h-5 mr-2 text-green-500 animate-spin"
+                      className="mr-2 h-5 w-5 animate-spin text-green-500"
                       xmlns="http://www.w3.org/2000/svg"
                       fill="none"
                       viewBox="0 0 24 24"
@@ -173,15 +323,17 @@ const EditCategory: React.FC<EditCategoryProps> = () => {
               </button>
               <button
                 onClick={handleSave}
-                className={`py-1 mx-3 text-white rounded-3xl px-9 flex items-center justify-center ${
-                  loading === 'save' ? 'bg-green-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'
+                className={`mx-3 flex items-center justify-center rounded-3xl px-9 py-1 text-white ${
+                  loading === 'save'
+                    ? 'cursor-not-allowed bg-green-400'
+                    : 'bg-green-500 hover:bg-green-600'
                 }`}
-                disabled={loading !== null} // Disable button during loading
+                disabled={loading !== null}
               >
                 {loading === 'save' ? (
                   <>
                     <svg
-                      className="w-5 h-5 mr-2 text-white animate-spin"
+                      className="mr-2 h-5 w-5 animate-spin text-white"
                       xmlns="http://www.w3.org/2000/svg"
                       fill="none"
                       viewBox="0 0 24 24"
@@ -209,155 +361,53 @@ const EditCategory: React.FC<EditCategoryProps> = () => {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Part 2: Products in Category Section with Pagination */}
-        <div className="w-full h-auto p-4 bg-white rounded-lg shadow-sm">
-          <div className="w-full pb-3 border-b-2">
-            <label className="font-bold">Products in this Category ({categoryProducts.length})</label>
-          </div>
-
-          <div className="w-full mt-4">
-            <table className="w-full border border-collapse border-gray-200">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-4 py-2 text-left border border-gray-300 w-[50px]">S.No</th>
-                  <th className="px-4 py-2 text-left border border-gray-300">Product ID</th>
-                  <th className="px-4 py-2 text-left border border-gray-300">Product Name</th>
-                  <th className="px-4 py-2 text-left border border-gray-300">Price</th>
-                  <th className="px-4 py-2 text-left border border-gray-300">Quantity</th>
-                  <th className="px-4 py-2 text-left border border-gray-300 w-[120px]">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {currentProducts.map((product, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-center border border-gray-300">
-                      {indexOfFirstProduct + index + 1}
-                    </td>
-                    <td className="px-4 py-2 border border-gray-300">{product.productId}</td>
-                    <td className="px-4 py-2 border border-gray-300">{product.name}</td>
-                    <td className="px-4 py-2 border border-gray-300">${product.price.toFixed(2)}</td>
-                    <td className="px-4 py-2 border border-gray-300">{product.quantity}</td>
-                    <td className="flex px-4 py-2 space-x-2 border border-gray-300">
-                      <button
-                        onClick={() => handleDeleteProduct(product.productId)}
-                        className={`p-2 rounded-full flex items-center justify-center ${
-                          loadingProductAction?.action === 'delete' && loadingProductAction?.productId === product.productId
-                            ? 'bg-gray-300 cursor-not-allowed'
-                            : 'bg-gray-100 hover:bg-red-200'
-                        }`}
-                        disabled={loadingProductAction !== null} // Disable button during any product action
-                      >
-                        {loadingProductAction?.action === 'delete' && loadingProductAction?.productId === product.productId ? (
-                          <svg
-                            className="w-5 h-5 text-gray-500 animate-spin"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            />
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8v8H4z"
-                            />
-                          </svg>
-                        ) : (
-                          <FaTrash className="text-gray-500" />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleEditProduct(product.productId)}
-                        className={`p-2 rounded-full flex items-center justify-center ${
-                          loadingProductAction?.action === 'edit' && loadingProductAction?.productId === product.productId
-                            ? 'bg-gray-300 cursor-not-allowed'
-                            : 'bg-gray-100 hover:bg-blue-200'
-                        }`}
-                        disabled={loadingProductAction !== null} // Disable button during any product action
-                      >
-                        {loadingProductAction?.action === 'edit' && loadingProductAction?.productId === product.productId ? (
-                          <svg
-                            className="w-5 h-5 text-gray-500 animate-spin"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            />
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8v8H4z"
-                            />
-                          </svg>
-                        ) : (
-                          <FaEdit className="text-gray-500" />
-                        )}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {categoryProducts.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-2 text-center border border-gray-300">
-                      No products found in this category
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-
-            {/* Product Pagination Controls */}
-            {categoryProducts.length > 0 && (
-              <div className="flex items-center justify-between mt-4">
-                <div>
-                  Showing {indexOfFirstProduct + 1} to {Math.min(indexOfLastProduct, categoryProducts.length)} of {categoryProducts.length} products
-                </div>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => handleProductPageChange(currentProductPage - 1)}
-                    disabled={currentProductPage === 1}
-                    className="px-3 py-1 border rounded-md disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-                  {Array.from({ length: totalProductPages }, (_, i) => i + 1).map(page => (
-                    <button
-                      key={page}
-                      onClick={() => handleProductPageChange(page)}
-                      className={`px-3 py-1 border rounded-md ${
-                        currentProductPage === page ? 'bg-green-500 text-white' : 'bg-white'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => handleProductPageChange(currentProductPage + 1)}
-                    disabled={currentProductPage === totalProductPages}
-                    className="px-3 py-1 border rounded-md disabled:opacity-50"
-                  >
-                    Next
-                  </button>
-                </div>
+      {/* Image Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-lg">
+            <h2 className="mb-4 text-lg font-bold">Edit Category Image</h2>
+            <div className="mb-4 flex items-center">
+              <input
+                type="text"
+                value={currentImageUrl}
+                onChange={(e) => setCurrentImageUrl(e.target.value)}
+                className="h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
+                placeholder="Enter image URL (e.g., https://example.com/image.jpg)"
+              />
+            </div>
+            {currentImageUrl && (
+              <div className="mb-4">
+                <img
+                  src={currentImageUrl}
+                  alt="Category Image Preview"
+                  className="h-32 w-32 rounded object-cover"
+                  onError={(e) =>
+                    (e.currentTarget.src =
+                      'https://via.placeholder.com/150?text=Invalid+URL')
+                  }
+                />
               </div>
             )}
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={closeModal}
+                className="rounded-3xl border border-gray-500 px-4 py-1 text-gray-500 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveModal}
+                className="rounded-3xl bg-green-500 px-4 py-1 text-white hover:bg-green-600"
+                disabled={!currentImageUrl.trim()}
+              >
+                Save
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

@@ -84,11 +84,11 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, isSidebarOpen }) => {
             {/* User Profile Section */}
             <div className="ml-auto mr-10 flex h-[3.2rem] items-center rounded-full bg-[#ffffff26] text-white">
               <img
-                src="https://th.bing.com/th/id/R.bb44b1e236b7580c7f2959c1d7a3d8b0?rik=VcpibGBJe%2b%2frQw&riu=http%3a%2f%2ffullhdwall.com%2fwp-content%2fuploads%2f2016%2f02%2fBest-cat-photo.jpeg&ehk=oyp5eUOaEqWAZ9V1eABMvvA7i4PevlSHbREquSpd8Vk%3d&risl=&pid=ImgRaw&r=0"
+                src="https://i.guim.co.uk/img/media/02088fb2247b13df646907d47f552dc69a236bc7/0_93_3235_3304/master/3235.jpg?width=700&quality=85&auto=format&fit=max&s=68f6a70c31fdd9fbdafce53e7d9b752c"
                 alt="profile"
                 className="h-[3.2rem] w-[3.2rem] rounded-full border-[3px] border-[#e6effa]"
               />
-              <p className="hidden ml-4 md:block">Tấn Nhật</p>
+              <p className="hidden ml-4 md:block">Tech Shop</p>
               <Dropdown
                 options={['Option 1', 'Option 2', 'Option 3']}
                 onSelect={handleSelect}

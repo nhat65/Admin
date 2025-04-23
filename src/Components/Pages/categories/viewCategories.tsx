@@ -56,21 +56,28 @@ const ViewCategories: React.FC<Props> = () => {
     navigate(`/categories/editCategory/${categoryId}`); // Navigate immediately
     setLoadingNavigate(null); // Clear loading state (though this may not be noticeable due to navigation)
   };
-
-  const handleDelete = (categoryId: string) => {
+  const handleDelete = async (categoryId: string) => {
     if (window.confirm('Are you sure you want to delete this category?')) {
-      setLoadingDelete(categoryId); // Set loading state for this specific category
-      const updatedCategories = categories.filter(
-        (category) => category.id !== categoryId
-      );
-      setCategories(updatedCategories);
-      const totalPages = Math.ceil(
-        updatedCategories.length / categoriesPerPage
-      );
-      if (currentPage > totalPages) {
-        setCurrentPage(totalPages || 1);
+      setLoadingDelete(categoryId);
+      try {
+        await axios.delete(`${API_ENDPOINTS.DELETE_CATEGORY}/${categoryId}`);
+        const updatedCategories = categories.filter(
+          (category) => category.id !== categoryId
+        );
+        setCategories(updatedCategories);
+        const totalPages = Math.ceil(
+          updatedCategories.length / categoriesPerPage
+        );
+        if (currentPage > totalPages) {
+          setCurrentPage(totalPages || 1);
+        }
+        alert('Category deleted successfully!');
+      } catch (error) {
+        console.error('Error deleting category:', error);
+        alert('Failed to delete category. Please try again.');
+      } finally {
+        setLoadingDelete(null);
       }
-      setLoadingDelete(null); // Clear loading state
     }
   };
   const handleReset = () => {
@@ -79,19 +86,25 @@ const ViewCategories: React.FC<Props> = () => {
     setCategories(initialCategories);
     setCurrentPage(1); // Reset to first page
   };
-
-  const handleSearch = () => {
-    setLoadingSearch(true); // Start loading
-    const filteredCategories = initialCategories.filter(
-      (category) =>
-        category.categoryName
-          .toLowerCase()
-          .includes(searchName.toLowerCase()) &&
-        category.id?.toLowerCase().includes(searchId.toLowerCase())
-    );
-    setCategories(filteredCategories);
-    setCurrentPage(1); // Reset to first page after search
-    setLoadingSearch(false); // End loading
+  const handleSearch = async () => {
+    setLoadingSearch(true);
+    try {
+      const response = await axios.get<Category[]>(
+        API_ENDPOINTS.SEARCH_CATEGORY,
+        {
+          params: {
+            categoryName: searchName,
+          },
+        }
+      );
+      setCategories(response.data);
+      setCurrentPage(1); // Reset to first page after search
+    } catch (error) {
+      console.error('Error searching category:', error);
+      alert('Failed to search categories. Please try again.');
+    } finally {
+      setLoadingSearch(false);
+    }
   };
 
   // Pagination logic
@@ -132,20 +145,6 @@ const ViewCategories: React.FC<Props> = () => {
                   onChange={(e) => setSearchName(e.target.value)}
                   className="mt-2 inline-block h-11 w-full rounded-xl border-2 pl-3 align-middle focus:border-gray-400 focus:shadow-md focus:outline-none"
                   placeholder="Enter category name"
-                  disabled={loadingSearch} // Disable input during search
-                />
-              </div>
-              <div className="my-2">
-                <label htmlFor="categoryId" className="">
-                  Category ID
-                </label>
-                <input
-                  type="text"
-                  id="categoryId"
-                  value={searchId}
-                  onChange={(e) => setSearchId(e.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
-                  placeholder="Enter category ID"
                   disabled={loadingSearch} // Disable input during search
                 />
               </div>
