@@ -6,7 +6,6 @@ interface AdminProps {
 }
 
 const Admin: React.FC<AdminProps> = ({ isSidebarOpen }) => {
-
   return (
     <div className="bg-gray-50">
       <div
@@ -15,10 +14,8 @@ const Admin: React.FC<AdminProps> = ({ isSidebarOpen }) => {
         }`}
       >
         <Outlet />
-        
       </div>
     </div>
-    
   );
 };
 

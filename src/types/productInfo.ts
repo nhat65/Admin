@@ -6,18 +6,15 @@ export interface ProductInfo {
     quantity: number;
     categoryId: string;
     productImages: ProductImage[];
-    CpuType?: string;
-    RamType?: string;
-    RomType?: string;
-    ScreenSize?: string;
-    BateryCapacity?: string;
-    DetailsType?: string;
-    ConnectType?: string;
+    cpuType?: string;
+    ramType?: string;
+    romType?: string;
+    screenSize?: string;
+    bateryCapacity?: string;
+    detailsType?: string;
+    connectType?: string;
   }
-  export interface CartProductInfo extends ProductInfo {
-    cartQuantity: number; // Số lượng sản phẩm trong giỏ hàng
-  }
-  
+
   export interface ProductImage {
     imageUrl: string;
   }

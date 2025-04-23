@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import Admin from './Components/Pages/Admin';
-import { BrowserRouter, Routes, Route, useLocation,Navigate } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  useLocation,
+  Navigate,
+} from 'react-router-dom';
 import Navbar from './Components/Navbar/Navbar';
 import Sidebar from './Components/Sidebar/Sidebar';
 import AddProduct from './Components/Pages/Products/addProduct';
@@ -13,6 +19,7 @@ import EditCategory from './Components/Pages/categories/editCategory';
 import ViewUsers from './Components/Pages/users/viewUsers';
 import EditUser from './Components/Pages/users/editUser';
 import ViewNewOrders from './Components/Pages/cart/newOrders';
+import AddUser from './Components/Pages/users/addUser';
 
 const App = () => {
   return (
@@ -24,7 +31,7 @@ const App = () => {
 
 const MainLayout = () => {
   const location = useLocation();
-  const isAuthPage = location.pathname === "/login"; // Check if user is on login page
+  const isAuthPage = location.pathname === '/login'; // Check if user is on login page
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -43,22 +50,31 @@ const MainLayout = () => {
       )}
 
       <Routes>
+        <Route path="/" element={<Navigate to="/login" replace />} />
 
-      <Route path="/" element={<Navigate to="/login" replace />} />
-        
         {/* Login Route */}
         <Route path="/login" element={<Login />} />
-        
+
+        {/* Cart Routes */}
+        <Route path="/carts" element={<Admin isSidebarOpen={isSidebarOpen} />}>
+          <Route path="newOrders" element={<ViewNewOrders />} />
+        </Route>
 
         {/* Categories Routes */}
-        <Route path="/categories" element={<Admin isSidebarOpen={isSidebarOpen} />}>
+        <Route
+          path="/categories"
+          element={<Admin isSidebarOpen={isSidebarOpen} />}
+        >
           <Route path="viewCategories" element={<ViewCategories />} />
           <Route path="addCategory" element={<AddCategory />} />
           <Route path="editCategory/:categoryId" element={<EditCategory />} />
         </Route>
 
         {/* Products Routes */}
-        <Route path="/products" element={<Admin isSidebarOpen={isSidebarOpen} />}>
+        <Route
+          path="/products"
+          element={<Admin isSidebarOpen={isSidebarOpen} />}
+        >
           <Route path="viewProducts" element={<ViewProducts />} />
           <Route path="addProduct" element={<AddProduct />} />
           <Route path="editProduct/:productId" element={<EditProduct />} />
@@ -67,18 +83,9 @@ const MainLayout = () => {
         {/* Users Management Routes */}
         <Route path="/users" element={<Admin isSidebarOpen={isSidebarOpen} />}>
           <Route path="viewUsers" element={<ViewUsers />} />
-          <Route path="addProduct" element={<AddProduct />} />
+          <Route path="addUser" element={<AddUser />} />
           <Route path="editUser/:userId" element={<EditUser />} />
         </Route>
-
-        {/* Users Management Routes */}
-        <Route path="/carts" element={<Admin isSidebarOpen={isSidebarOpen} />}>
-          <Route path="newOrders" element={<ViewNewOrders />} />
-          <Route path="addProduct" element={<AddProduct />} />
-          <Route path="editUser/:userId" element={<EditUser />} />
-        </Route>
-
-
 
         {/* 404 Not Found - Redirect to a Not Found Page */}
         <Route path="*" element={<NotFound />} />
@@ -89,9 +96,11 @@ const MainLayout = () => {
 
 const NotFound = () => {
   return (
-    <div className="flex flex-col items-center justify-center h-auto text-center">
+    <div className="flex h-auto flex-col items-center justify-center text-center">
       <h1 className="text-4xl font-bold text-red-600">404 - Page Not Found</h1>
-      <p className="mt-2 text-gray-500">The page you are looking for does not exist.</p>
+      <p className="mt-2 text-gray-500">
+        The page you are looking for does not exist.
+      </p>
     </div>
   );
 };

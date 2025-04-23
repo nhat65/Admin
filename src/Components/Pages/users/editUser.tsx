@@ -1,195 +1,215 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import usersData from '../../../data/users'; // Import fake user data
-import paymentsData from '../../../data/payments'; // Import fake payment data
-import { FaEdit } from 'react-icons/fa';
-import { FaTrash } from 'react-icons/fa6';
+import axios from 'axios';
+import { UserInfo } from '../../../types/userInfo';
+import { API_ENDPOINTS } from '../../../service/apiService';
 
 interface EditUserProps {}
 
 const EditUser: React.FC<EditUserProps> = () => {
-  const { userId } = useParams();
+  const { userId, userNameSlug } = useParams<{
+    userId: string;
+    userNameSlug: string;
+  }>();
   const navigate = useNavigate();
 
-  // Find the user from fake data based on userId
-  const initialUser = usersData.find(user => user.userId === userId) || {
-    username: '',
-    fullname: '',
-    address: '',
-    phone: '',
-    email: '',
-    password: '',
-  };
-
-  const [user, setUser] = useState({ ...initialUser });
+  // User state
+  const [user, setUser] = useState<UserInfo>({
+    id: '',
+    userName: '',
+    userPassword: '',
+    userFullName: '',
+    userAddress: '',
+    userPhone: '',
+  });
 
   // Loading states
-  const [loading, setLoading] = useState<'save' | 'cancel' | null>(null); // For save and cancel actions
-  const [loadingPaymentAction, setLoadingPaymentAction] = useState<{ action: 'edit' | 'delete'; paymentId: string } | null>(null); // For payment actions
+  const [loading, setLoading] = useState<'save' | 'cancel' | null>(null);
+  const [userLoading, setUserLoading] = useState(true);
 
-  // Pagination for payments
-  const [currentPaymentPage, setCurrentPaymentPage] = useState(1);
-  const paymentsPerPage = 5;
-
-  // Filter payments for this user
-  const userPayments = paymentsData.filter(payment => payment.userId === userId);
-
+  // Fetch user
   useEffect(() => {
-    setUser(initialUser);
+    const fetchUser = async () => {
+      try {
+        setUserLoading(true);
+        const response = await axios.get<UserInfo[]>(
+          API_ENDPOINTS.GET_USER_INFO
+        );
+        const foundUser = response.data.find((u) => u.id === userId);
+        if (foundUser) {
+          setUser(foundUser);
+        } else {
+          throw new Error('User not found');
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+        alert('Failed to load user. Please try again.');
+      } finally {
+        setUserLoading(false);
+      }
+    };
+
+    if (userId) {
+      fetchUser();
+    }
   }, [userId]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setUser(prev => ({ ...prev, [name]: value }));
+  // Handler for input changes
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { id, value } = e.target;
+    setUser((prev) => ({
+      ...prev,
+      [id]: value,
+    }));
   };
 
+  // Validation
+  const validateUser = (user: UserInfo): string | null => {
+    if (!user.userName.trim()) return 'Username is required';
+    if (!user.userPassword.trim()) return 'Password is required';
+    if (!user.userFullName.trim()) return 'Full name is required';
+    if (!user.userAddress.trim()) return 'Address is required';
+    if (!user.userPhone.trim()) return 'Phone number is required';
+    return null;
+  };
+
+  // Handle cancel
   const handleCancel = () => {
-    setLoading('cancel'); // Set loading state for cancel
-    navigate('/users/viewUsers'); // Navigate immediately
-    setLoading(null); // Clear loading state (though this may not be noticeable due to navigation)
+    setLoading('cancel');
+    navigate('/users/viewUsers');
+    setLoading(null);
   };
 
-  const handleSave = () => {
-    setLoading('save'); // Set loading state for save
-    console.log('Saving user:', user);
-    navigate('/users/viewUsers'); // Navigate immediately
-    setLoading(null); // Clear loading state (though this may not be noticeable due to navigation)
+  // Handle save
+  const handleSave = async () => {
+    try {
+      setLoading('save');
+
+      const userToSave: UserInfo = {
+        id: userId,
+        userName: user.userName.trim(),
+        userPassword: user.userPassword.trim(),
+        userFullName: user.userFullName.trim(),
+        userAddress: user.userAddress.trim(),
+        userPhone: user.userPhone.trim(),
+      };
+
+      // Validation
+      const error = validateUser(userToSave);
+      if (error) {
+        alert(error);
+        setLoading(null);
+        return;
+      }
+
+      // Call API PUT
+      await axios.put(API_ENDPOINTS.PUT_USER_INFO, userToSave);
+      alert('User updated successfully!');
+      navigate('/users/viewUsers');
+    } catch (error) {
+      console.error('Error updating user:', error);
+      alert('Failed to update user. Please check your inputs or try again.');
+    } finally {
+      setLoading(null);
+    }
   };
 
-  // Handlers for payment actions
-  const handleDeletePayment = (paymentId: string) => {
-    setLoadingPaymentAction({ action: 'delete', paymentId }); // Set loading state for delete
-    console.log(`Delete payment with ID: ${paymentId}`);
-    setLoadingPaymentAction(null); // Clear loading state
-  };
-
-  const handleEditPayment = (paymentId: string) => {
-    setLoadingPaymentAction({ action: 'edit', paymentId }); // Set loading state for edit
-    console.log(`Edit payment with ID: ${paymentId}`);
-    // Navigate to an edit payment page if needed
-    // navigate(`/payments/editPayment/${paymentId}`);
-    setLoadingPaymentAction(null); // Clear loading state
-  };
-
-  // Payment pagination logic
-  const indexOfLastPayment = currentPaymentPage * paymentsPerPage;
-  const indexOfFirstPayment = indexOfLastPayment - paymentsPerPage;
-  const currentPayments = userPayments.slice(indexOfFirstPayment, indexOfLastPayment);
-  const totalPaymentPages = Math.ceil(userPayments.length / paymentsPerPage);
-
-  const handlePaymentPageChange = (pageNumber: number) => {
-    setCurrentPaymentPage(pageNumber);
-  };
+  if (userLoading) {
+    return <div>Loading user...</div>;
+  }
 
   return (
     <div className="bg-gray-50">
       <div className="grid grid-cols-1 gap-6">
-        {/* Part 1: User Edit Section */}
-        <div className="w-full h-auto p-4 bg-white rounded-lg shadow-sm">
-          <div className="w-full pb-3 border-b-2">
+        {/* User Edit Section */}
+        <div className="h-auto w-full rounded-lg bg-white p-4 shadow-sm">
+          <div className="w-full border-b-2 pb-3">
             <label className="font-bold">Edit User</label>
           </div>
 
-          <div className="grid w-full grid-cols-2 m-2 gap-x-5 gap-y-6">
+          <div className="m-2 grid w-full grid-cols-2 gap-x-5 gap-y-6">
             <div>
-              <label htmlFor="username">Username</label>
+              <label htmlFor="userName">Username*</label>
               <input
                 type="text"
-                id="username"
-                name="username"
-                value={user.username}
+                id="userName"
+                value={user.userName}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter username"
-                disabled={loading !== null} // Disable input during loading
+                disabled={loading !== null}
               />
             </div>
 
             <div>
-              <label htmlFor="fullname">Full Name</label>
+              <label htmlFor="userFullName">Full Name*</label>
               <input
                 type="text"
-                id="fullname"
-                name="fullname"
-                value={user.fullname}
+                id="userFullName"
+                value={user.userFullName}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter full name"
-                disabled={loading !== null} // Disable input during loading
+                disabled={loading !== null}
               />
             </div>
 
             <div>
-              <label htmlFor="address">Address</label>
-              <input
-                type="text"
-                id="address"
-                name="address"
-                value={user.address}
+              <label htmlFor="userAddress">Address*</label>
+              <textarea
+                id="userAddress"
+                value={user.userAddress}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                className="mt-2 min-h-[100px] w-full rounded-xl border-2 p-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter address"
-                disabled={loading !== null} // Disable input during loading
+                disabled={loading !== null}
               />
             </div>
 
             <div>
-              <label htmlFor="phone">Phone</label>
+              <label htmlFor="userPhone">Phone Number*</label>
               <input
                 type="text"
-                id="phone"
-                name="phone"
-                value={user.phone}
+                id="userPhone"
+                value={user.userPhone}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter phone number"
-                disabled={loading !== null} // Disable input during loading
+                disabled={loading !== null}
               />
             </div>
 
             <div>
-              <label htmlFor="email">Email</label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={user.email}
-                onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
-                placeholder="Enter email"
-                disabled={loading !== null} // Disable input during loading
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password">Password</label>
+              <label htmlFor="userPassword">Password*</label>
               <input
                 type="password"
-                id="password"
-                name="password"
-                value={user.password}
+                id="userPassword"
+                value={user.userPassword}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter new password"
-                disabled={loading !== null} // Disable input during loading
+                disabled={loading !== null}
               />
             </div>
           </div>
 
           {/* Cancel and Save Buttons */}
-          <div className="flex w-full my-2 border-t-2">
-            <div className="flex justify-end w-full mt-3">
+          <div className="my-2 flex w-full border-t-2">
+            <div>*Required</div>
+            <div className="mt-3 flex w-full justify-end">
               <button
                 onClick={handleCancel}
-                className={`py-1 text-green-500 border border-green-500 rounded-3xl px-9 flex items-center justify-center ${
-                  loading === 'cancel' ? 'opacity-50 cursor-not-allowed' : ''
+                className={`flex items-center justify-center rounded-3xl border border-green-500 px-9 py-1 text-green-500 ${
+                  loading === 'cancel' ? 'cursor-not-allowed opacity-50' : ''
                 }`}
-                disabled={loading !== null} // Disable button during loading
+                disabled={loading !== null}
               >
                 {loading === 'cancel' ? (
                   <>
                     <svg
-                      className="w-5 h-5 mr-2 text-green-500 animate-spin"
+                      className="mr-2 h-5 w-5 animate-spin text-green-500"
                       xmlns="http://www.w3.org/2000/svg"
                       fill="none"
                       viewBox="0 0 24 24"
@@ -216,15 +236,17 @@ const EditUser: React.FC<EditUserProps> = () => {
               </button>
               <button
                 onClick={handleSave}
-                className={`py-1 mx-3 text-white rounded-3xl px-9 flex items-center justify-center ${
-                  loading === 'save' ? 'bg-green-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'
+                className={`mx-3 flex items-center justify-center rounded-3xl px-9 py-1 text-white ${
+                  loading === 'save'
+                    ? 'cursor-not-allowed bg-green-400'
+                    : 'bg-green-500 hover:bg-green-600'
                 }`}
-                disabled={loading !== null} // Disable button during loading
+                disabled={loading !== null}
               >
                 {loading === 'save' ? (
                   <>
                     <svg
-                      className="w-5 h-5 mr-2 text-white animate-spin"
+                      className="mr-2 h-5 w-5 animate-spin text-white"
                       xmlns="http://www.w3.org/2000/svg"
                       fill="none"
                       viewBox="0 0 24 24"
@@ -250,154 +272,6 @@ const EditUser: React.FC<EditUserProps> = () => {
                 )}
               </button>
             </div>
-          </div>
-        </div>
-
-        {/* Part 2: Payments List Section */}
-        <div className="w-full h-auto p-4 bg-white rounded-lg shadow-sm">
-          <div className="w-full pb-3 border-b-2">
-            <label className="font-bold">Payments for this User ({userPayments.length})</label>
-          </div>
-
-          <div className="w-full mt-4">
-            <table className="w-full border border-collapse border-gray-200">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-4 py-2 text-left border border-gray-300 w-[50px]">S.No</th>
-                  <th className="px-4 py-2 text-left border border-gray-300">Payment ID</th>
-                  <th className="px-4 py-2 text-left border border-gray-300">Amount</th>
-                  <th className="px-4 py-2 text-left border border-gray-300">Date</th>
-                  <th className="px-4 py-2 text-left border border-gray-300">Status</th>
-                  <th className="px-4 py-2 text-left border border-gray-300 w-[120px]">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {currentPayments.map((payment, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-center border border-gray-300">
-                      {indexOfFirstPayment + index + 1}
-                    </td>
-                    <td className="px-4 py-2 border border-gray-300">{payment.paymentId}</td>
-                    <td className="px-4 py-2 border border-gray-300">${payment.amount.toFixed(2)}</td>
-                    <td className="px-4 py-2 border border-gray-300">{payment.date}</td>
-                    <td className="px-4 py-2 border border-gray-300">{payment.status}</td>
-                    <td className="flex px-4 py-2 space-x-2 border border-gray-300">
-                      <button
-                        onClick={() => handleDeletePayment(payment.paymentId)}
-                        className={`p-2 rounded-full flex items-center justify-center ${
-                          loadingPaymentAction?.action === 'delete' && loadingPaymentAction?.paymentId === payment.paymentId
-                            ? 'bg-gray-300 cursor-not-allowed'
-                            : 'bg-gray-100 hover:bg-red-200'
-                        }`}
-                        disabled={loadingPaymentAction !== null} // Disable button during any payment action
-                      >
-                        {loadingPaymentAction?.action === 'delete' && loadingPaymentAction?.paymentId === payment.paymentId ? (
-                          <svg
-                            className="w-5 h-5 text-gray-500 animate-spin"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            />
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8v8H4z"
-                            />
-                          </svg>
-                        ) : (
-                          <FaTrash className="text-gray-500" />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleEditPayment(payment.paymentId)}
-                        className={`p-2 rounded-full flex items-center justify-center ${
-                          loadingPaymentAction?.action === 'edit' && loadingPaymentAction?.paymentId === payment.paymentId
-                            ? 'bg-gray-300 cursor-not-allowed'
-                            : 'bg-gray-100 hover:bg-blue-200'
-                        }`}
-                        disabled={loadingPaymentAction !== null} // Disable button during any payment action
-                      >
-                        {loadingPaymentAction?.action === 'edit' && loadingPaymentAction?.paymentId === payment.paymentId ? (
-                          <svg
-                            className="w-5 h-5 text-gray-500 animate-spin"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            />
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8v8H4z"
-                            />
-                          </svg>
-                        ) : (
-                          <FaEdit className="text-gray-500" />
-                        )}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {userPayments.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-2 text-center border border-gray-300">
-                      No payments found for this user
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-
-            {/* Payment Pagination Controls */}
-            {userPayments.length > 0 && (
-              <div className="flex items-center justify-between mt-4">
-                <div>
-                  Showing {indexOfFirstPayment + 1} to {Math.min(indexOfLastPayment, userPayments.length)} of {userPayments.length} payments
-                </div>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => handlePaymentPageChange(currentPaymentPage - 1)}
-                    disabled={currentPaymentPage === 1}
-                    className="px-3 py-1 border rounded-md disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-                  {Array.from({ length: totalPaymentPages }, (_, i) => i + 1).map(page => (
-                    <button
-                      key={page}
-                      onClick={() => handlePaymentPageChange(page)}
-                      className={`px-3 py-1 border rounded-md ${
-                        currentPaymentPage === page ? 'bg-green-500 text-white' : 'bg-white'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => handlePaymentPageChange(currentPaymentPage + 1)}
-                    disabled={currentPaymentPage === totalPaymentPages}
-                    className="px-3 py-1 border rounded-md disabled:opacity-50"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

@@ -27,7 +27,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
         }`}
         style={{ width: '250px' }}
       >
-        <div className="p-4 text-xl font-bold">Sidebar</div>
+        <div className="p-4 text-xl font-bold">Tech-Admin</div>
         <div className="flex items-center gap-2 pl-3 text-[#64728c]">
           <FaSearch />
           <input
@@ -39,11 +39,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
         
         <ul className="pr-5 mt-4">
           {[
-            
+            { icon: <BsFillCartFill  />, label: 'Dashboard', url: '/carts/newOrders' },
             { icon: <AiFillProduct  />, label: 'Products', url: '/products/viewProducts' },
             { icon: <BiSolidCategory  />, label: 'Categories', url: 'categories/viewCategories' },
             { icon: <FaUsers />, label: 'Users', url: '/users/viewUsers' },
-            { icon: <BsFillCartFill  />, label: 'Carts', url: '/carts/newOrders' },
           ].map((item, index) => (
             <li
               key={index}

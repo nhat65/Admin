@@ -1,23 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import productsData from '../../../data/products'; // Import the fake data
-
-interface Product {
-  productId: string;
-  name: string;
-  price: number;
-  quantity: number;
-  category: string;
-  description: string;
-  images: string; // Comma-separated string of image URLs
-  CpuType: string;
-  RamType: string;
-  RomType: string;
-  ScreenSize: string;
-  BatteryCapacity: string;
-  DetailsType: string;
-  ConnectType: string;
-}
+import axios from 'axios';
+import { ProductInfo, ProductImage } from '../../../types/productInfo';
+import { Category } from '../../../types/category';
+import { API_ENDPOINTS } from '../../../service/apiService';
 
 interface EditProductProps {}
 
@@ -25,309 +11,377 @@ const EditProduct: React.FC<EditProductProps> = () => {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
 
-  // Find the product from fake data based on productId
-  const initialProduct = productsData.find(product => product.productId === productId) || {
-    productId: '',
+  const [products, setProducts] = useState<ProductInfo>({
+    id: '',
     name: '',
     price: 0,
-    quantity: 0,
-    category: '',
     description: '',
-    images: '', // Initialize with empty string
-    CpuType: '',
-    RamType: '',
-    RomType: '',
-    ScreenSize: '',
-    BatteryCapacity: '',
-    DetailsType: '',
-    ConnectType: '',
-  };
+    quantity: 0,
+    categoryId: '',
+    productImages: [],
+    cpuType: '',
+    ramType: '',
+    romType: '',
+    screenSize: '',
+    bateryCapacity: '',
+    detailsType: '',
+    connectType: '',
+  });
 
-  const [product, setProduct] = useState<Product>(initialProduct);
-  const [loading, setLoading] = useState<'save' | 'cancel' | null>(null); // Loading state
-
-  // State for modal
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [loading, setLoading] = useState<'save' | 'cancel' | null>(null);
+  const [productLoading, setProductLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalImageUrls, setModalImageUrls] = useState<string[]>(product.images ? product.images.split(',').map(url => url.trim()) : []);
+  const [modalImageUrls, setModalImageUrls] = useState<string[]>([]);
   const [currentImageUrl, setCurrentImageUrl] = useState('');
 
+  // Fetch product data
   useEffect(() => {
-    const foundProduct = productsData.find(product => product.productId === productId) || {
-      productId: '',
-      name: '',
-      price: 0,
-      quantity: 0,
-      category: '',
-      description: '',
-      images: '',
-      CpuType: '',
-      RamType: '',
-      RomType: '',
-      ScreenSize: '',
-      BatteryCapacity: '',
-      DetailsType: '',
-      ConnectType: '',
+    const fetchProduct = async () => {
+      try {
+        setProductLoading(true);
+        const response = await axios.get<ProductInfo>(
+          `${API_ENDPOINTS.GET_PRODUCT_DETAILS}/${productId}`
+        );
+        setProducts(response.data);
+        setModalImageUrls(
+          response.data.productImages
+            .map((img) => img.imageUrl)
+            .filter((url) => url)
+        );
+      } catch (error) {
+        console.error('Error fetching product:', error);
+        alert('Failed to load product. Please try again.');
+      } finally {
+        setProductLoading(false);
+      }
     };
-    setProduct(foundProduct);
-    setModalImageUrls(foundProduct.images ? foundProduct.images.split(',').map(url => url.trim()).filter(url => url) : []);
+
+    const fetchCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const response = await axios.get<Category[]>(
+          API_ENDPOINTS.GET_CATEGORIES
+        );
+        setCategories(response.data);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        alert('Failed to load categories. Please try again.');
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+
+    if (productId) {
+      fetchProduct();
+      fetchCategories();
+    }
   }, [productId]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setProduct(prev => ({ ...prev, [name]: value }));
+  // Handler cho input
+  const handleInputChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
+  ) => {
+    const { id, value } = e.target;
+    setProducts((prev) => ({
+      ...prev,
+      [id]: value,
+    }));
   };
 
-  // Open the modal
+  // Mở modal
   const openModal = () => {
     setIsModalOpen(true);
-    // Preload modal with existing images
-    setModalImageUrls(product.images ? product.images.split(',').map(url => url.trim()).filter(url => url) : []);
+    setModalImageUrls(products.productImages.map((img) => img.imageUrl));
   };
 
-  // Close the modal without saving
+  // Đóng modal không lưu
   const closeModal = () => {
     setIsModalOpen(false);
     setCurrentImageUrl('');
-    setModalImageUrls(product.images ? product.images.split(',').map(url => url.trim()).filter(url => url) : []);
+    setModalImageUrls(products.productImages.map((img) => img.imageUrl));
   };
 
-  // Add an image URL to the list in the modal
+  // Thêm URL hình ảnh
   const addImageUrl = () => {
     if (currentImageUrl.trim()) {
-      setModalImageUrls(prev => [...prev, currentImageUrl.trim()]);
-      setCurrentImageUrl(''); // Clear the input after adding
+      setModalImageUrls((prev) => [...prev, currentImageUrl.trim()]);
+      setCurrentImageUrl('');
     }
   };
 
-  // Remove an image URL from the list in the modal
+  // Xóa URL hình ảnh
   const removeImageUrl = (index: number) => {
-    setModalImageUrls(prev => prev.filter((_, i) => i !== index));
+    setModalImageUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Save the image URLs and close the modal
+  // Lưu hình ảnh từ modal
   const saveModal = () => {
-    setProduct(prev => ({
+    setProducts((prev) => ({
       ...prev,
-      images: modalImageUrls.join(', '), // Join URLs into a comma-separated string
+      productImages: modalImageUrls.map((url) => ({ imageUrl: url })),
     }));
     setIsModalOpen(false);
     setCurrentImageUrl('');
   };
 
+  // Xử lý hủy
   const handleCancel = () => {
-    setLoading('cancel'); // Set loading state for cancel
-    navigate('/products/viewProducts'); // Navigate immediately
-    setLoading(null); // Clear loading state (though this may not be noticeable due to navigation)
+    setLoading('cancel');
+    navigate('/products/viewProducts');
+    setLoading(null);
   };
 
-  const handleSave = () => {
-    setLoading('save'); // Set loading state for save
-    const updatedProduct = {
-      ...product,
-      images: product.images.split(',').map(url => url.trim()).filter(url => url), // Convert comma-separated string to array
-    };
-    console.log('Saving product:', updatedProduct);
-    // In a real app, you would update the product in the data source here
-    navigate('/products/viewProducts'); // Navigate immediately
-    setLoading(null); // Clear loading state (though this may not be noticeable due to navigation)
+  // Validation
+  const validateProduct = (product: ProductInfo): string | null => {
+    if (!product.name.trim()) return 'Product name is required';
+    if (product.price <= 0) return 'Price must be greater than 0';
+    if (product.quantity < 0) return 'Quantity cannot be negative';
+    if (!product.description.trim()) return 'Description is required';
+    if (!product.categoryId) return 'Category is required';
+    if (product.productImages.length === 0)
+      return 'At least one product image is required';
+    return null;
   };
+
+  // Xử lý lưu
+  const handleSave = async () => {
+    try {
+      setLoading('save');
+
+      const productToSave: ProductInfo = {
+        id: productId,
+        name: products.name,
+        price: parseFloat(products.price.toString()),
+        description: products.description,
+        quantity: parseInt(products.quantity.toString()),
+        categoryId: products.categoryId,
+        productImages: products.productImages.filter(
+          (img) => img.imageUrl.trim() !== ''
+        ),
+        cpuType: products.cpuType || undefined,
+        ramType: products.ramType || undefined,
+        romType: products.romType || undefined,
+        screenSize: products.screenSize || undefined,
+        bateryCapacity: products.bateryCapacity || undefined,
+        detailsType: products.detailsType || undefined,
+        connectType: products.connectType || undefined,
+      };
+
+      // Validation
+      const error = validateProduct(productToSave);
+      if (error) {
+        alert(error);
+        setLoading(null);
+        return;
+      }
+
+      // Gọi API PUT
+      await axios.put(API_ENDPOINTS.PUT_PRODUCT_INFO, productToSave);
+      alert('Product updated successfully!');
+      navigate('/products/viewProducts');
+    } catch (error) {
+      console.error('Error updating product:', error);
+      alert('Failed to update product. Please check your inputs or try again.');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  if (productLoading) {
+    return <div>Loading product...</div>;
+  }
 
   return (
     <div>
-      <div className="w-full p-4 bg-white rounded-lg shadow-sm">
-        <div className="w-full pb-3 border-b-2">
+      <div className="w-full rounded-lg bg-white p-4 shadow-sm">
+        <div className="w-full border-b-2 pb-3">
           <label className="font-bold">Edit Product</label>
         </div>
-        
-        <div className="grid w-full grid-cols-2 m-2 gap-x-5">
+        <div className="m-2 grid w-full grid-cols-2 gap-x-5">
           <div className="space-y-10">
             <div>
               <label htmlFor="name">Product Name*</label>
               <input
                 type="text"
                 id="name"
-                name="name"
-                value={product.name}
+                value={products.name}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter product name"
-                disabled={loading !== null} // Disable input during loading
+                disabled={loading !== null}
               />
             </div>
-
             <div>
               <label htmlFor="price">Product Price*</label>
               <input
                 type="number"
                 id="price"
-                name="price"
-                value={product.price}
+                value={products.price}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter price"
                 min="0"
                 step="0.01"
-                disabled={loading !== null} // Disable input during loading
+                disabled={loading !== null}
               />
             </div>
-
             <div>
               <label htmlFor="quantity">Quantity*</label>
               <input
                 type="number"
                 id="quantity"
-                name="quantity"
-                value={product.quantity}
+                value={products.quantity}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter quantity"
                 min="0"
-                disabled={loading !== null} // Disable input during loading
+                disabled={loading !== null}
               />
             </div>
-
             <div>
-              <label htmlFor="category">Category*</label>
+              <label htmlFor="categoryId">Category*</label>
               <select
-                id="category"
-                name="category"
-                value={product.category}
+                id="categoryId"
+                value={products.categoryId}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
-                disabled={loading !== null} // Disable select during loading
+                className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
+                disabled={loading !== null || categoriesLoading}
               >
                 <option value="">--Select Category--</option>
-                <option value="Electronics">Electronics</option>
-                <option value="Clothing">Clothing</option>
-                <option value="Food & Beverage">Food & Beverage</option>
-                <option value="Furniture">Furniture</option>
-                <option value="Other">Other</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id!!}>
+                    {category.categoryName}
+                  </option>
+                ))}
               </select>
+              {categoriesLoading && (
+                <p className="mt-1 text-sm text-gray-500">
+                  Loading categories...
+                </p>
+              )}
+              {!categoriesLoading && categories.length === 0 && (
+                <p className="mt-1 text-sm text-red-500">
+                  No categories available
+                </p>
+              )}
             </div>
           </div>
-
           <div className="space-y-10">
             <div>
-              <label htmlFor="CpuType">CPU Type</label>
+              <label htmlFor="cpuType">CPU Type</label>
               <input
                 type="text"
-                id="CpuType"
-                name="CpuType"
-                value={product.CpuType}
+                id="cpuType"
+                value={products.cpuType}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter CPU type (e.g., Intel i7, Snapdragon 8)"
-                disabled={loading !== null} // Disable input during loading
+                disabled={loading !== null}
               />
             </div>
-
             <div>
-              <label htmlFor="RamType">RAM Type</label>
+              <label htmlFor="ramType">RAM Type</label>
               <input
                 type="text"
-                id="RamType"
-                name="RamType"
-                value={product.RamType}
+                id="ramType"
+                value={products.ramType}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter RAM type (e.g., 8GB DDR4)"
-                disabled={loading !== null} // Disable input during loading
+                disabled={loading !== null}
               />
             </div>
-
             <div>
-              <label htmlFor="RomType">ROM Type</label>
+              <label htmlFor="romType">ROM Type</label>
               <input
                 type="text"
-                id="RomType"
-                name="RomType"
-                value={product.RomType}
+                id="romType"
+                value={products.romType}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter ROM type (e.g., 256GB SSD)"
-                disabled={loading !== null} // Disable input during loading
+                disabled={loading !== null}
               />
             </div>
-
             <div>
-              <label htmlFor="ScreenSize">Screen Size</label>
+              <label htmlFor="screenSize">Screen Size</label>
               <input
                 type="text"
-                id="ScreenSize"
-                name="ScreenSize"
-                value={product.ScreenSize}
+                id="screenSize"
+                value={products.screenSize}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter screen size (e.g., 15.6 inches)"
-                disabled={loading !== null} // Disable input during loading
+                disabled={loading !== null}
               />
             </div>
           </div>
         </div>
-
-        <div className="grid w-full grid-cols-2 m-2 gap-x-5">
+        <div className="m-2 mt-10 grid w-full grid-cols-2 gap-x-5">
           <div className="space-y-10">
             <div>
-              <label htmlFor="BatteryCapacity">Battery Capacity</label>
+              <label htmlFor="bateryCapacity">Battery Capacity</label>
               <input
                 type="text"
-                id="BatteryCapacity"
-                name="BatteryCapacity"
-                value={product.BatteryCapacity}
+                id="bateryCapacity"
+                value={products.bateryCapacity}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter battery capacity (e.g., 5000mAh)"
-                disabled={loading !== null} // Disable input during loading
+                disabled={loading !== null}
               />
             </div>
-
             <div>
-              <label htmlFor="DetailsType">Details Type</label>
+              <label htmlFor="detailsType">Details Type</label>
               <input
                 type="text"
-                id="DetailsType"
-                name="DetailsType"
-                value={product.DetailsType}
+                id="detailsType"
+                value={products.detailsType}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter details type (e.g., Technical Specs)"
-                disabled={loading !== null} // Disable input during loading
+                disabled={loading !== null}
               />
             </div>
-
             <div>
-              <label htmlFor="ConnectType">Connect Type</label>
+              <label htmlFor="connectType">Connect Type</label>
               <input
                 type="text"
-                id="ConnectType"
-                name="ConnectType"
-                value={product.ConnectType}
+                id="connectType"
+                value={products.connectType}
                 onChange={handleInputChange}
-                className="w-full pl-3 mt-2 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter connect type (e.g., USB-C, Wi-Fi)"
-                disabled={loading !== null} // Disable input during loading
+                disabled={loading !== null}
               />
             </div>
           </div>
-
           <div className="space-y-10">
             <div>
-              <label>Images (Comma-separated URLs)*</label>
+              <label>Images*</label>
               <button
                 onClick={openModal}
-                className="w-full pl-3 mt-2 text-green-700 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none bg-green-50 hover:bg-green-100"
-                disabled={loading !== null} // Disable button during loading
+                className="mt-2 h-11 w-full rounded-xl border-2 bg-green-50 pl-3 text-green-700 hover:bg-green-100 focus:border-gray-400 focus:shadow-md focus:outline-none"
+                disabled={loading !== null}
               >
                 Edit Images
               </button>
-              {product.images && (
+              {products.productImages.length > 0 && (
                 <div className="mt-2">
                   <p className="text-sm text-gray-600">Current Images:</p>
-                  <ul className="list-disc list-inside">
-                    {product.images.split(',').map((url, index) => (
+                  <ul className="list-inside list-disc">
+                    {products.productImages.map((img, index) => (
                       <li key={index} className="text-sm text-blue-500">
-                        <a href={url.trim()} target="_blank" rel="noopener noreferrer">
-                          {url.trim()}
+                        <a
+                          href={img.imageUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {img.imageUrl}
                         </a>
                       </li>
                     ))}
@@ -337,36 +391,33 @@ const EditProduct: React.FC<EditProductProps> = () => {
             </div>
           </div>
         </div>
-
-        <div className="w-full p-3 mt-4 bg-gray-100 rounded-xl">
+        <div className="mt-4 w-full rounded-xl bg-gray-100 p-3">
           <div>
             <label htmlFor="description">Description*</label>
             <textarea
               id="description"
-              name="description"
-              value={product.description}
+              value={products.description}
               onChange={handleInputChange}
-              className="w-full pl-3 mt-2 border-2 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none min-h-[100px] p-2"
+              className="mt-2 min-h-[100px] w-full rounded-xl border-2 p-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
               placeholder="Enter product description"
-              disabled={loading !== null} // Disable textarea during loading
+              disabled={loading !== null}
             />
           </div>
         </div>
-
-        <div className="flex w-full my-2 border-t-2">
+        <div className="my-2 flex w-full border-t-2">
           <div>*Required</div>
-          <div className="flex justify-end w-full mt-3">
+          <div className="mt-3 flex w-full justify-end">
             <button
               onClick={handleCancel}
-              className={`py-1 text-green-500 border border-green-500 rounded-3xl px-9 flex items-center justify-center ${
-                loading === 'cancel' ? 'opacity-50 cursor-not-allowed' : ''
+              className={`flex items-center justify-center rounded-3xl border border-green-500 px-9 py-1 text-green-500 ${
+                loading === 'cancel' ? 'cursor-not-allowed opacity-50' : ''
               }`}
-              disabled={loading !== null} // Disable button during loading
+              disabled={loading !== null}
             >
               {loading === 'cancel' ? (
                 <>
                   <svg
-                    className="w-5 h-5 mr-2 text-green-500 animate-spin"
+                    className="mr-2 h-5 w-5 animate-spin text-green-500"
                     xmlns="http://www.w3.org/2000/svg"
                     fill="none"
                     viewBox="0 0 24 24"
@@ -393,15 +444,17 @@ const EditProduct: React.FC<EditProductProps> = () => {
             </button>
             <button
               onClick={handleSave}
-              className={`py-1 mx-3 text-white rounded-3xl px-9 flex items-center justify-center ${
-                loading === 'save' ? 'bg-green-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'
+              className={`mx-3 flex items-center justify-center rounded-3xl px-9 py-1 text-white ${
+                loading === 'save'
+                  ? 'cursor-not-allowed bg-green-400'
+                  : 'bg-green-500 hover:bg-green-600'
               }`}
-              disabled={loading !== null} // Disable button during loading
+              disabled={loading !== null}
             >
               {loading === 'save' ? (
                 <>
                   <svg
-                    className="w-5 h-5 mr-2 text-white animate-spin"
+                    className="mr-2 h-5 w-5 animate-spin text-white"
                     xmlns="http://www.w3.org/2000/svg"
                     fill="none"
                     viewBox="0 0 24 24"
@@ -429,44 +482,49 @@ const EditProduct: React.FC<EditProductProps> = () => {
           </div>
         </div>
       </div>
-
-      {/* Modal for Image Input */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="w-full max-w-lg p-6 bg-white rounded-lg shadow-lg">
+          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-lg">
             <h2 className="mb-4 text-lg font-bold">Edit Product Images</h2>
-            
-            {/* Input for adding image URL */}
-            <div className="flex items-center mb-4">
+            <div className="mb-4 flex items-center">
               <input
                 type="text"
                 value={currentImageUrl}
                 onChange={(e) => setCurrentImageUrl(e.target.value)}
-                className="w-full pl-3 border-2 h-11 rounded-xl focus:border-gray-400 focus:shadow-md focus:outline-none"
+                className="h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
                 placeholder="Enter image URL (e.g., https://example.com/image.jpg)"
               />
               <button
                 onClick={addImageUrl}
-                className="px-4 py-1 ml-2 text-white bg-green-500 rounded-3xl hover:bg-green-600"
+                className="ml-2 rounded-3xl bg-green-500 px-4 py-1 text-white hover:bg-green-600"
                 disabled={!currentImageUrl.trim()}
               >
                 Add
               </button>
             </div>
-
-            {/* Display added image URLs and images */}
             {modalImageUrls.length > 0 ? (
-              <div className="mb-4 overflow-y-auto max-h-64">
+              <div className="mb-4 max-h-64 overflow-y-auto">
                 {modalImageUrls.map((url, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 mb-2 border rounded-lg">
+                  <div
+                    key={index}
+                    className="mb-2 flex items-center justify-between rounded-lg border p-2"
+                  >
                     <div className="flex items-center">
                       <img
                         src={url}
                         alt={`Product Image ${index + 1}`}
-                        className="object-cover w-16 h-16 mr-4 rounded"
-                        onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/150?text=Invalid+URL')} // Fallback for invalid URLs
+                        className="mr-4 h-16 w-16 rounded object-cover"
+                        onError={(e) =>
+                          (e.currentTarget.src =
+                            'https://via.placeholder.com/150?text=Invalid+URL')
+                        }
                       />
-                      <a href={url} target="_blank" rel="noopener noreferrer" className="max-w-xs text-blue-500 truncate">
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="max-w-xs truncate text-blue-500"
+                      >
                         {url}
                       </a>
                     </div>
@@ -482,18 +540,16 @@ const EditProduct: React.FC<EditProductProps> = () => {
             ) : (
               <p className="mb-4 text-gray-500">No images added yet.</p>
             )}
-
-            {/* Modal buttons */}
             <div className="flex justify-end space-x-2">
               <button
                 onClick={closeModal}
-                className="px-4 py-1 text-gray-500 border border-gray-500 rounded-3xl hover:bg-gray-100"
+                className="rounded-3xl border border-gray-500 px-4 py-1 text-gray-500 hover:bg-gray-100"
               >
                 Cancel
               </button>
               <button
                 onClick={saveModal}
-                className="px-4 py-1 text-white bg-green-500 rounded-3xl hover:bg-green-600"
+                className="rounded-3xl bg-green-500 px-4 py-1 text-white hover:bg-green-600"
               >
                 Save
               </button>

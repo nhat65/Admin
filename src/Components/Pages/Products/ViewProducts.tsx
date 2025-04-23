@@ -69,7 +69,6 @@ const ViewProducts: React.FC<Props> = () => {
     navigate('/products/addProduct');
     setLoadingNavigate(false);
   };
-
   const handleEdit = (productId: string) => {
     setLoadingNavigate(true);
     // Simulate navigation delay
@@ -78,21 +77,26 @@ const ViewProducts: React.FC<Props> = () => {
     setLoadingNavigate(false);
   };
 
-  const handleDelete = (productId: string) => {
+  const handleDelete = async (productId: string) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
-      setLoadingDelete(productId); // Set loading state for this specific product
-      // Simulate API call for deletion
-
-      const updatedProducts = products.filter(
-        (product) => product.id !== productId
-      );
-      setProducts(updatedProducts);
-      // Adjust current page if necessary after deletion
-      const totalPages = Math.ceil(updatedProducts.length / productsPerPage);
-      if (currentPage > totalPages) {
-        setCurrentPage(totalPages || 1);
+      setLoadingDelete(productId);
+      try {
+        await axios.delete(`${API_ENDPOINTS.DELETE_PRODUCT_INFO}/${productId}`);
+        const updatedProducts = products.filter(
+          (product) => product.id !== productId
+        );
+        setProducts(updatedProducts);
+        const totalPages = Math.ceil(updatedProducts.length / productsPerPage);
+        if (currentPage > totalPages) {
+          setCurrentPage(totalPages || 1);
+        }
+        alert('Product deleted successfully!');
+      } catch (error) {
+        console.error('Error deleting product:', error);
+        alert('Failed to delete product. Please try again.');
+      } finally {
+        setLoadingDelete(null);
       }
-      setLoadingDelete(null); // Clear loading state
     }
   };
 
@@ -103,18 +107,25 @@ const ViewProducts: React.FC<Props> = () => {
     setCurrentPage(1); // Reset to first page
   };
 
-  const handleSearch = () => {
-    setLoadingSearch(true); // Start loading
-    // Simulate API call for search
-
-    const filteredProducts = initialProducts.filter(
-      (product) =>
-        product.name.toLowerCase().includes(searchName.toLowerCase()) &&
-        product.id?.toLowerCase().includes(searchId.toLowerCase())
-    );
-    setProducts(filteredProducts);
-    setCurrentPage(1); // Reset to first page after search
-    setLoadingSearch(false); // End loading
+  const handleSearch = async () => {
+    setLoadingSearch(true);
+    try {
+      const response = await axios.get<ProductInfo[]>(
+        API_ENDPOINTS.SEARCH_PRODUCT_INFO,
+        {
+          params: {
+            productName: searchName,
+          },
+        }
+      );
+      setProducts(response.data);
+      setCurrentPage(1); // Reset to first page after search
+    } catch (error) {
+      console.error('Error searching products:', error);
+      alert('Failed to search products. Please try again.');
+    } finally {
+      setLoadingSearch(false);
+    }
   };
 
   // Pagination logic
@@ -155,20 +166,6 @@ const ViewProducts: React.FC<Props> = () => {
                   onChange={(e) => setSearchName(e.target.value)}
                   className="mt-2 inline-block h-11 w-full rounded-xl border-2 pl-3 align-middle focus:border-gray-400 focus:shadow-md focus:outline-none"
                   placeholder="Enter product name"
-                  disabled={loadingSearch} // Disable input during search
-                />
-              </div>
-              <div className="my-2">
-                <label htmlFor="productId" className="">
-                  Product ID
-                </label>
-                <input
-                  type="text"
-                  id="productId"
-                  value={searchId}
-                  onChange={(e) => setSearchId(e.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border-2 pl-3 focus:border-gray-400 focus:shadow-md focus:outline-none"
-                  placeholder="Enter product ID"
                   disabled={loadingSearch} // Disable input during search
                 />
               </div>
